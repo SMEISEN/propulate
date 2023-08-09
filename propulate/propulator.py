@@ -191,8 +191,7 @@ class Propulator:
     def _population_statistics(self, active_pop):
         stats = {}
         for k, v in self.pop_stat.items():
-            x = [dict(d)[k] for d in active_pop]
-            stats.update({k: v(x)})
+            stats.update({k: v(active_pop)})
         return stats
 
     def _evaluate_individual(self, DEBUG):
