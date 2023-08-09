@@ -27,6 +27,7 @@ class Islands:
         immigration_propagator=SelectMax,
         pollination=False,
         checkpoint_path=Path('./'),
+        pop_stat=None
     ):
         """
         Constructor of Islands() class.
@@ -200,6 +201,7 @@ class Islands:
                 unique_ind=unique_ind,
                 unique_counts=isle_sizes,
                 rng=rng,
+                pop_stat=pop_stat
             )
         elif pollination is True:
             if MPI.COMM_WORLD.rank == 0:
@@ -219,6 +221,7 @@ class Islands:
                 unique_ind=unique_ind,
                 unique_counts=isle_sizes,
                 rng=rng,
+                pop_stat=pop_stat
             )
 
     def _run(self, top_n, out_file, logging_interval, DEBUG):

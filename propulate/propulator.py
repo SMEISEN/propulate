@@ -35,6 +35,7 @@ class Propulator:
         unique_ind=None,
         unique_counts=None,
         rng=None,
+        pop_stat=None
     ):
         """
         Constructor of Propulator class.
@@ -74,6 +75,8 @@ class Propulator:
                         Element i specifies number of workers on isle with index i.
         rng : random.Random()
               random number generator
+        pop_stat : Dict[str, Callable]
+                   key is the hyperparameter, value is the function that should be applied for the active population
         """
         # Set class attributes.
         self.loss_fn = loss_fn  # callable loss function
@@ -99,6 +102,9 @@ class Propulator:
         self.emigration_propagator = emigration_propagator  # emigration propagator
         self.emigrated = []  # emigrated individuals to be deactivated on sending isle
         self.rng = rng
+        if pop_stat is None:
+            pop_stat = {}
+        self.pop_stat = pop_stat
 
         # Load initial population of evaluated individuals from checkpoint if exists.
         load_ckpt_file = self.checkpoint_path / f'island_{self.isle_idx}_ckpt.pkl'
@@ -173,13 +179,21 @@ class Propulator:
         ind = self.propagator(
             active_pop
         )  # Breed new individual from active population.
+        ind.loss = None  # Reset loss
         ind.generation = self.generation  # Set generation.
         ind.rank = self.comm.rank  # Set worker rank.
         ind.active = True  # If True, individual is active for breeding.
         ind.isle = self.isle_idx  # Set birth island.
         ind.current = self.comm.rank  # Set worker responsible for migration.
         ind.migration_steps = 0  # Set number of migration steps performed.
+        ind.population_statistics = self._population_statistics(active_pop)
         return ind  # Return new individual.
+
+    def _population_statistics(self, active_pop):
+        stats = {}
+        for k, v in self.pop_stat.items():
+            stats.update({k: v(active_pop)})
+        return stats
 
     def _evaluate_individual(self, DEBUG):
         """
