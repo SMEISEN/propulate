@@ -185,6 +185,7 @@ class PolliPropulator:
         ind = self.propagator(
             active_pop
         )  # Breed new individual from active population.
+        ind.loss = None  # Reset loss
         ind.generation = self.generation  # Set generation.
         ind.rank = self.comm.rank  # Set worker rank.
         ind.active = True  # If True, individual is active for breeding.
