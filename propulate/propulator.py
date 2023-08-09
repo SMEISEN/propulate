@@ -185,7 +185,7 @@ class Propulator:
         ind.isle = self.isle_idx  # Set birth island.
         ind.current = self.comm.rank  # Set worker responsible for migration.
         ind.migration_steps = 0  # Set number of migration steps performed.
-        ind.pop_stat = self._population_statistics(active_pop)
+        ind.population_statistics = self._population_statistics(active_pop)
         return ind  # Return new individual.
 
     def _population_statistics(self, active_pop):
