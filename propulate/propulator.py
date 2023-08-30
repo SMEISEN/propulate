@@ -1,6 +1,7 @@
 import copy
 import os
 import pickle
+import cloudpickle
 import time
 from operator import attrgetter
 from pathlib import Path
@@ -204,6 +205,16 @@ class Propulator:
         ind.loss = self.loss_fn(ind)  # Evaluate its loss.
         ind.evaltime = time.time()
         ind.evalperiod = ind.evaltime - start_time
+
+        # check if loss is better than population
+        if len(self.population) == 0:
+            with open(f"{self.checkpoint_path}/best_pipeline.pkl", "wb") as file:
+                cloudpickle.dump(ind.pipeline, file)
+        if len(self.population) > 0 and ind.loss < sorted(self.population, key=lambda obj: obj.loss)[0].loss:
+            with open(f"{self.checkpoint_path}/best_pipeline.pkl", "wb") as file:
+                cloudpickle.dump(ind.pipeline, file)
+        del ind.pipeline
+
         self.population.append(
             ind
         )  # Add evaluated individual to own worker-local population.
