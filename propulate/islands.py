@@ -27,7 +27,8 @@ class Islands:
         immigration_propagator=SelectMax,
         pollination=False,
         checkpoint_path=Path('./'),
-        pop_stat=None
+        pop_stat=None,
+        custom_logger=None
     ):
         """
         Constructor of Islands() class.
@@ -64,6 +65,10 @@ class Islands:
                       original isle.
         checkpoint_path : Union[Path, str]
                           Path where checkpoints are loaded from and stored.
+        pop_stat : Dict[str, Callable]
+           key is the hyperparameter, value is the function that should be applied for the active population
+        custom_logger : Callable
+                        a callable that receives self and ind for custom logging after evaluating an individual
         """
         # Set attributes.
         self.loss_fn = loss_fn  # callable loss function
@@ -201,7 +206,8 @@ class Islands:
                 unique_ind=unique_ind,
                 unique_counts=isle_sizes,
                 rng=rng,
-                pop_stat=pop_stat
+                pop_stat=pop_stat,
+                custom_logger=custom_logger
             )
         elif pollination is True:
             if MPI.COMM_WORLD.rank == 0:
@@ -221,7 +227,8 @@ class Islands:
                 unique_ind=unique_ind,
                 unique_counts=isle_sizes,
                 rng=rng,
-                pop_stat=pop_stat
+                pop_stat=pop_stat,
+                custom_logger=custom_logger
             )
 
     def _run(self, top_n, out_file, logging_interval, DEBUG):

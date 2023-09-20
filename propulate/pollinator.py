@@ -40,6 +40,7 @@ class PolliPropulator:
         unique_counts=None,
         rng=None,
         pop_stat=None,
+        custom_logger=None,
     ):
         """
         Constructor of Propulator class.
@@ -84,7 +85,9 @@ class PolliPropulator:
         rng : random.Random()
               random number generator
         pop_stat : Dict[str, Callable]
-                   key is the hyperparameter, value is the function that sould be applied for the active population
+                   key is the hyperparameter, value is the function that should be applied for the active population
+        custom_logger : Callable
+                        a callable that receives self and ind for custom logging after evaluating an individual
         """
         # Set class attributes.
         self.loss_fn = loss_fn  # callable loss function
@@ -112,6 +115,9 @@ class PolliPropulator:
         if pop_stat is None:
             pop_stat = {}
         self.pop_stat = pop_stat
+        if custom_logger is None:
+            custom_logger = lambda *args: None
+        self.custom_logger = custom_logger
 
         # Load initial population of evaluated individuals from checkpoint if exists.
         load_ckpt_file = self.checkpoint_path / f'island_{self.isle_idx}_ckpt.pkl'
@@ -218,14 +224,7 @@ class PolliPropulator:
         ind.evaltime = time.time()
         ind.evalperiod = ind.evaltime - start_time
 
-        # check if loss is better than population
-        if len(self.population) == 0:
-            with open(f"{self.checkpoint_path}/best_pipeline.pkl", "wb") as file:
-                cloudpickle.dump(ind.pipeline, file)
-        if len(self.population) > 0 and ind.loss < sorted(self.population, key=lambda obj: obj.loss)[0].loss:
-            with open(f"{self.checkpoint_path}/best_pipeline.pkl", "wb") as file:
-                cloudpickle.dump(ind.pipeline, file)
-        del ind.pipeline
+        self.custom_logger(self, ind)
 
         self.population.append(
             ind

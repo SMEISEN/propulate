@@ -22,21 +22,22 @@ class Propulator:
     """
 
     def __init__(
-        self,
-        loss_fn,
-        propagator,
-        isle_idx,
-        comm=MPI.COMM_WORLD,
-        generations=0,
-        checkpoint_path=Path('./'),
-        migration_topology=None,
-        comm_inter=MPI.COMM_WORLD,
-        migration_prob=0.,
-        emigration_propagator=None,
-        unique_ind=None,
-        unique_counts=None,
-        rng=None,
-        pop_stat=None
+            self,
+            loss_fn,
+            propagator,
+            isle_idx,
+            comm=MPI.COMM_WORLD,
+            generations=0,
+            checkpoint_path=Path('./'),
+            migration_topology=None,
+            comm_inter=MPI.COMM_WORLD,
+            migration_prob=0.,
+            emigration_propagator=None,
+            unique_ind=None,
+            unique_counts=None,
+            rng=None,
+            pop_stat=None,
+            custom_logger=None,
     ):
         """
         Constructor of Propulator class.
@@ -78,6 +79,8 @@ class Propulator:
               random number generator
         pop_stat : Dict[str, Callable]
                    key is the hyperparameter, value is the function that should be applied for the active population
+        custom_logger : Callable
+                        a callable that receives self and ind for custom logging after evaluating an individual
         """
         # Set class attributes.
         self.loss_fn = loss_fn  # callable loss function
@@ -89,7 +92,7 @@ class Propulator:
         self.generations = int(
             generations
         )  # number of generations (evaluations per individual)
-        self.generation = 0 # current generation not yet evaluated
+        self.generation = 0  # current generation not yet evaluated
         self.isle_idx = int(isle_idx)  # isle index
         self.comm = comm  # intra-isle communicator
         self.comm_inter = comm_inter  # inter-isle communicator
@@ -106,6 +109,9 @@ class Propulator:
         if pop_stat is None:
             pop_stat = {}
         self.pop_stat = pop_stat
+        if custom_logger is None:
+            custom_logger = lambda *args: None
+        self.custom_logger = custom_logger
 
         # Load initial population of evaluated individuals from checkpoint if exists.
         load_ckpt_file = self.checkpoint_path / f'island_{self.isle_idx}_ckpt.pkl'
@@ -206,14 +212,7 @@ class Propulator:
         ind.evaltime = time.time()
         ind.evalperiod = ind.evaltime - start_time
 
-        # check if loss is better than population
-        if len(self.population) == 0:
-            with open(f"{self.checkpoint_path}/best_pipeline.pkl", "wb") as file:
-                cloudpickle.dump(ind.pipeline, file)
-        if len(self.population) > 0 and ind.loss < sorted(self.population, key=lambda obj: obj.loss)[0].loss:
-            with open(f"{self.checkpoint_path}/best_pipeline.pkl", "wb") as file:
-                cloudpickle.dump(ind.pipeline, file)
-        del ind.pipeline
+        self.custom_logger(self, ind)
 
         self.population.append(
             ind
@@ -311,14 +310,14 @@ class Propulator:
 
                 # Worker sends *different* individuals to each target isle.
                 emigrants = all_emigrants[
-                    offsprings_sent: offsprings_sent + offspring
-                ]  # Choose `offspring` eligible emigrants.
+                            offsprings_sent: offsprings_sent + offspring
+                            ]  # Choose `offspring` eligible emigrants.
                 offsprings_sent += offspring
                 log_string += f"Chose {len(emigrants)} emigrant(s): {emigrants}\n"
 
                 # Deactivate emigrants on sending isle (true migration).
                 for r in range(
-                    self.comm.size
+                        self.comm.size
                 ):  # Send emigrants to other intra-isle workers for deactivation.
                     if r == self.comm.rank:
                         continue  # No self-talk.
@@ -337,8 +336,8 @@ class Propulator:
                         copy.deepcopy(departing), dest=r, tag=MIGRATION_TAG
                     )
                     log_string += (
-                        f"Sent {len(departing)} individual(s) to W{r-self.unique_ind[target_isle]} "
-                        + f"on target I{target_isle}.\n"
+                            f"Sent {len(departing)} individual(s) to W{r - self.unique_ind[target_isle]} "
+                            + f"on target I{target_isle}.\n"
                     )
 
                 # Deactivate emigrants for sending worker.
@@ -348,7 +347,7 @@ class Propulator:
                         idx
                         for idx, ind in enumerate(self.population)
                         if ind == emigrant
-                        and ind.migration_steps == emigrant.migration_steps
+                           and ind.migration_steps == emigrant.migration_steps
                     ]
                     assert len(to_deactivate) == 1  # There should be exactly one!
                     _, n_active_before = self._get_active_individuals()
@@ -357,8 +356,8 @@ class Propulator:
                     ].active = False  # Deactivate emigrant in population.
                     _, n_active_after = self._get_active_individuals()
                     log_string += (
-                        f"Deactivated own emigrant {self.population[to_deactivate[0]]}. "
-                        + f"Active before/after: {n_active_before}/{n_active_after}\n"
+                            f"Deactivated own emigrant {self.population[to_deactivate[0]]}. "
+                            + f"Active before/after: {n_active_before}/{n_active_after}\n"
                     )
             _, n_active = self._get_active_individuals()
             log_string += (
@@ -405,16 +404,16 @@ class Propulator:
                     immigrant.migration_steps += 1
                     assert immigrant.active is True
                     catastrophic_failure = (
-                        len(
-                            [
-                                ind
-                                for ind in self.population
-                                if ind == immigrant
-                                and immigrant.migration_steps == ind.migration_steps
-                                and immigrant.current == ind.current
-                            ]
-                        )
-                        > 0
+                            len(
+                                [
+                                    ind
+                                    for ind in self.population
+                                    if ind == immigrant
+                                       and immigrant.migration_steps == ind.migration_steps
+                                       and immigrant.current == ind.current
+                                ]
+                            )
+                            > 0
                     )
                     if catastrophic_failure:
                         raise RuntimeError(
@@ -461,17 +460,17 @@ class Propulator:
                     break
 
             log_string = (
-                f"I{self.isle_idx} W{self.comm.rank} G{self.generation}:\n"
-                + f"Currently in emigrated: {emigrant}\n"
-                + f"I{self.isle_idx} W{self.comm.rank} G{self.generation}: Currently in population: {existing_ind}\n"
-                + "Equivalence check: "
-                + str(existing_ind[0] == emigrant)
-                + str(compare_traits)
-                + str(existing_ind[0].loss == self.emigrated[idx].loss)
-                + str(existing_ind[0].active == emigrant.active)
-                + str(existing_ind[0].current == emigrant.current)
-                + str(existing_ind[0].isle == emigrant.isle)
-                + str(existing_ind[0].migration_steps == emigrant.migration_steps)
+                    f"I{self.isle_idx} W{self.comm.rank} G{self.generation}:\n"
+                    + f"Currently in emigrated: {emigrant}\n"
+                    + f"I{self.isle_idx} W{self.comm.rank} G{self.generation}: Currently in population: {existing_ind}\n"
+                    + "Equivalence check: "
+                    + str(existing_ind[0] == emigrant)
+                    + str(compare_traits)
+                    + str(existing_ind[0].loss == self.emigrated[idx].loss)
+                    + str(existing_ind[0].active == emigrant.active)
+                    + str(existing_ind[0].current == emigrant.current)
+                    + str(existing_ind[0].isle == emigrant.isle)
+                    + str(existing_ind[0].migration_steps == emigrant.migration_steps)
             )
             print(log_string)
 
@@ -502,9 +501,9 @@ class Propulator:
                 # Add new emigrants to list of emigrants to be deactivated.
                 self.emigrated = self.emigrated + copy.deepcopy(new_emigrants)
                 log_string += (
-                    f"Got {len(new_emigrants)} new emigrant(s) {new_emigrants} "
-                    + f"from W{stat.Get_source()} to be deactivated.\n"
-                    + f"Overall {len(self.emigrated)} individuals to deactivate: {self.emigrated}\n"
+                        f"Got {len(new_emigrants)} new emigrant(s) {new_emigrants} "
+                        + f"from W{stat.Get_source()} to be deactivated.\n"
+                        + f"Overall {len(self.emigrated)} individuals to deactivate: {self.emigrated}\n"
                 )
             # TODO In while loop or not?
             emigrated_copy = copy.deepcopy(self.emigrated)
@@ -514,7 +513,7 @@ class Propulator:
                     idx
                     for idx, ind in enumerate(self.population)
                     if ind == emigrant
-                    and ind.migration_steps == emigrant.migration_steps
+                       and ind.migration_steps == emigrant.migration_steps
                 ]
                 if len(to_deactivate) == 0:
                     log_string += (
@@ -527,19 +526,19 @@ class Propulator:
                     idx
                     for idx, ind in enumerate(self.emigrated)
                     if ind == emigrant
-                    and ind.migration_steps == emigrant.migration_steps
+                       and ind.migration_steps == emigrant.migration_steps
                 ]
                 assert len(to_remove) == 1
                 self.emigrated.pop(to_remove[0])
                 log_string += (
-                    f"Deactivated {self.population[to_deactivate[0]]}.\n"
-                    + f"{len(self.emigrated)} individuals in emigrated.\n"
+                        f"Deactivated {self.population[to_deactivate[0]]}.\n"
+                        + f"{len(self.emigrated)} individuals in emigrated.\n"
                 )
         _, n_active = self._get_active_individuals()
         log_string += (
-            "After synchronization: "
-            + f"{n_active}/{len(self.population)} active.\n"
-            + f"{len(self.emigrated)} individuals in emigrated.\n"
+                "After synchronization: "
+                + f"{n_active}/{len(self.population)} active.\n"
+                + f"{len(self.emigrated)} individuals in emigrated.\n"
         )
         if DEBUG == 2:
             print(log_string)
@@ -782,7 +781,7 @@ class Propulator:
             print("###########\n")
             print(
                 f"Number of currently active individuals is {total}. "
-                f"\nExpected overall number of evaluations is {self.generations*MPI.COMM_WORLD.size}."
+                f"\nExpected overall number of evaluations is {self.generations * MPI.COMM_WORLD.size}."
             )
         populations = self.comm.gather(self.population, root=0)
         # Only double-check number of occurrences of each individual for DEBUG level 2.
@@ -812,7 +811,7 @@ class Propulator:
                 best = unique_pop[:top_n]
                 res_str = f"Top {top_n} result(s) on isle {self.isle_idx}:\n"
                 for i in range(top_n):
-                    res_str += f"({i+1}): {unique_pop[i]}\n"
+                    res_str += f"({i + 1}): {unique_pop[i]}\n"
                 print(res_str)
             best = self.comm.bcast(best, root=0)
 
